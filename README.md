@@ -1,9 +1,9 @@
 // HE THONG QUAN LY MANG XA HOI
-// 1. Nguoi dung  : Hash Table + AVL Tree
+// 1. Nguoi dung  : Hash Table + AVL Tree (+ luu tai khoan da dang nhap)
 // 2. Moi quan he : Graph (danh sach ke) + Hash Set
-// 3. Bai viet    : Doubly Linked List + Max-Heap (Priority Queue)
+// 3. Bai viet    : Doubly Linked List (danh so #1, #2... rieng tung tai khoan)
 // 4. Tuong tac   : N-ary Tree (binh luan long nhau) + Linked List (ds like)
-// 5. Tim kiem    : Trie (autocomplete) + BFS
+// 5. Ban chung   : Giao hai tap ke, goi y ket ban, BFS (khoang cach ket noi)
 // 6. Tin nhan    : Queue (thong bao chua doc) + Doubly Linked List (lich su chat)
 #include<iostream>
 #include<cstring>
@@ -14,7 +14,6 @@ using namespace std;
 
 const int MAXU = 100;    // id nguoi dung tu 1 den MAXU-1
 const int HSIZE = 101;   // so bucket cua bang bam
-const int MAXP = 1000;   // so bai viet toi da trong heap
 
 // ====================== TIEN ICH ======================
 typedef struct user{
@@ -194,6 +193,7 @@ typedef struct HashTable{
     int hashFunc(const char *s);
     bool insert(User *u);
     User *find(const char *username);
+    bool remove(const char *username);
 }HashTable;
 
 void HashTable::init(){
@@ -243,6 +243,8 @@ typedef struct AVLTree{
     AVLNode *rotateLeft(AVLNode *x);
     AVLNode *insert(AVLNode *p, User *u);
     void add(User *u);
+    void freeAll(AVLNode *p);
+    void reset();
     void inorder(AVLNode *p);
     void print();
 }AVLTree;
@@ -411,10 +413,10 @@ void printComments(Comment *p, int level){
 
 // ====================== 3. BAI VIET: DANH SACH LIEN KET DOI ======================
 typedef struct post{
-    int id;
+    int id;                    // so thu tu bai (#) RIENG cua tac gia
     int authorId;
     char content[200];
-    int time;
+    int commentCount;          // dem binh luan rieng cua bai (c1, c2, ...)
     Slist likes;               // danh sach id nguoi da like
     Comment *comments;         // goc cay binh luan (nut gia id = 0)
     struct post *prev;
@@ -466,129 +468,9 @@ bool PostList::removeById(int id){
     return true;
 }
 
-// ---- Max-Heap: tron bai viet cho Newsfeed, bai moi nhat len dau ----
-typedef struct MaxHeap{
-    Post *a[MAXP];
-    int n;
-    void init();
-    void push(Post *p);
-    Post *pop();
-    bool isempty();
-}MaxHeap;
-
-void MaxHeap::init(){
-    n = 0;
-}
-
-void MaxHeap::push(Post *p){
-    if(n >= MAXP) return;
-    int i = n++;
-    a[i] = p;
-    while(i > 0){
-        int par = (i - 1) / 2;
-        if(a[par]->time >= a[i]->time) break;
-        Post *t = a[par]; a[par] = a[i]; a[i] = t;
-        i = par;
-    }
-}
-
-Post *MaxHeap::pop(){
-    Post *top = a[0];
-    a[0] = a[--n];
-    int i = 0;
-    while(true){
-        int l = 2 * i + 1, r = 2 * i + 2, big = i;
-        if(l < n && a[l]->time > a[big]->time) big = l;
-        if(r < n && a[r]->time > a[big]->time) big = r;
-        if(big == i) break;
-        Post *t = a[big]; a[big] = a[i]; a[i] = t;
-        i = big;
-    }
-    return top;
-}
-
-bool MaxHeap::isempty(){
-    return n == 0;
-}
-
-// ====================== 5. TRIE (goi y tu khoa / hashtag) ======================
-typedef struct tnode{
-    struct tnode *child[128];
-    bool isEnd;
-    int count;
-}TNode;
-
-typedef struct Trie{
-    TNode *root;
-    bool showCount;
-    void init(bool sc);
-    TNode *createNode();
-    void insert(const char *s);
-    void collect(TNode *p, char *buf, int len, int &found);
-    void autocomplete(const char *prefix);
-}Trie;
-
-void Trie::init(bool sc){
-    showCount = sc;
-    root = createNode();
-}
-
-TNode *Trie::createNode(){
-    TNode *p = new TNode();
-    for(int i = 0; i < 128; i++) p->child[i] = NULL;
-    p->isEnd = false;
-    p->count = 0;
-    return p;
-}
-
-void Trie::insert(const char *s){
-    TNode *p = root;
-    for(int i = 0; s[i] != '\0'; i++){
-        int c = ((unsigned char)tolower((unsigned char)s[i])) & 127;
-        if(p->child[c] == NULL) p->child[c] = createNode();
-        p = p->child[c];
-    }
-    p->isEnd = true;
-    p->count++;
-}
-
-void Trie::collect(TNode *p, char *buf, int len, int &found){
-    if(p->isEnd){
-        buf[len] = '\0';
-        cout<<"  "<<buf;
-        if(showCount) cout<<" ("<<p->count<<" bai)";
-        cout<<endl;
-        found++;
-    }
-    for(int i = 0; i < 128; i++){
-        if(p->child[i] != NULL && len < 60){
-            buf[len] = (char)i;
-            collect(p->child[i], buf, len + 1, found);
-        }
-    }
-}
-
-void Trie::autocomplete(const char *prefix){
-    TNode *p = root;
-    char buf[64];
-    int len = 0;
-    for(int i = 0; prefix[i] != '\0' && len < 60; i++){
-        int c = ((unsigned char)tolower((unsigned char)prefix[i])) & 127;
-        if(p->child[c] == NULL){
-            cout<<"  (khong co goi y)"<<endl;
-            return;
-        }
-        p = p->child[c];
-        buf[len++] = (char)c;
-    }
-    int found = 0;
-    collect(p, buf, len, found);
-    if(found == 0) cout<<"  (khong co goi y)"<<endl;
-}
-
 // ====================== 6. THONG BAO (HANG DOI FIFO) & TIN NHAN (DSLK DOI) ======================
 typedef struct notif{
-    char text[200];
+    char text[300];
     struct notif *next;
 }Notif;
 
@@ -609,7 +491,7 @@ void NotifQueue::init(){
 
 void NotifQueue::enqueue(const char *t){
     Notif *n = new Notif();
-    copyStr(n->text, t, 200);
+    copyStr(n->text, t, 300);
     n->next = NULL;
     if(rear == NULL) front = rear = n;
     else{
@@ -622,7 +504,7 @@ void NotifQueue::enqueue(const char *t){
 bool NotifQueue::dequeue(char *out){
     if(front == NULL) return false;
     Notif *t = front;
-    copyStr(out, t->text, 200);
+    copyStr(out, t->text, 300);
     front = front->next;
     if(front == NULL) rear = NULL;
     delete t;
@@ -637,7 +519,6 @@ bool NotifQueue::isempty(){
 typedef struct msg{
     int from;
     char text[200];
-    int time;
     struct msg *prev;
     struct msg *next;
 }Msg;
@@ -650,20 +531,49 @@ typedef struct conv{
     struct conv *next;
 }Conv;
 
+// ====================== HAM BO SUNG CHO HASHTABLE / AVL ======================
+bool HashTable::remove(const char *username){
+    int h = hashFunc(username);
+    HNode *prev = NULL;
+    HNode *p = bucket[h];
+    while(p != NULL && strcmp(p->u->username, username) != 0){
+        prev = p;
+        p = p->next;
+    }
+    if(p == NULL) return false;
+    if(prev == NULL) bucket[h] = p->next;
+    else prev->next = p->next;
+    delete p;
+    return true;
+}
+
+void AVLTree::freeAll(AVLNode *p){
+    if(p == NULL) return;
+    freeAll(p->left);
+    freeAll(p->right);
+    delete p;
+}
+
+void AVLTree::reset(){
+    freeAll(root);
+    root = NULL;
+}
+
 // ====================== SOCIAL NETWORK (lop dieu phoi) ======================
+const int MAXSAVED = 5;    // so tai khoan duoc luu tren may (nhu Facebook)
+
 typedef struct SocialNetwork{
     HashTable ht;
     AVLTree avl;
-    Trie userTrie;
-    Trie tagTrie;
     Slist friends[MAXU];       // do thi vo huong (ban be)
-    Slist following[MAXU];     // do thi co huong (theo doi)
     HashSet friendSet;
-    HashSet followSet;
     PostList posts[MAXU];
+    int postCounter[MAXU];     // dem bai viet RIENG cho tung tai khoan (#1, #2, ...)
     NotifQueue notifs[MAXU];
     Conv *convHead;
-    int userCount, postCounter, commentCounter, timer;
+    int userCount;
+    int saved[MAXSAVED];       // cac tai khoan da dang nhap
+    int savedCount;
 
     void init();
     bool valid(int id);
@@ -672,43 +582,43 @@ typedef struct SocialNetwork{
     // 1. Nguoi dung
     int registerUser(const char *username, const char *password, const char *fullname, const char *bio);
     int login(const char *username, const char *password);
+    void saveAccount(int id);
     void printProfile(User *u);
     void searchUser(const char *username);
-    bool updateProfile(int id, const char *fullname, const char *bio);
+    void rebuildAVL();
+    int changeUsername(int id, const char *newName);
+    int changePassword(int id, const char *oldPw, const char *newPw);
+    bool changeBio(int id, const char *bio);
+    bool changeFullname(int id, const char *fullname);
 
     // 2. Moi quan he
     bool addFriend(int a, int b);
     bool unfriend(int a, int b);
-    bool follow(int a, int b);
-    bool unfollow(int a, int b);
     void printFriends(int id);
-    void printFollowing(int id);
 
-    // 3. Bai viet & Newsfeed
+    // 3. Bai viet
     int createPost(int author, const char *content);
-    bool deletePost(int author, int postId);
-    Post *findPost(int postId);
-    void printPost(Post *p);
-    void printUserPosts(int id);
-    void pushPosts(MaxHeap &h, int uid);
-    void newsfeed(int id, int k);
+    bool deletePost(int author, int postNo);
+    Post *findPost(int authorId, int postNo);
+    void printPost(Post *p, int viewer = 0);
+    void printPostFull(Post *p, int viewer);
+    void printUserPosts(int id, int viewer);
 
     // 4. Tuong tac
-    bool likePost(int u, int postId);
-    bool unlikePost(int u, int postId);
-    void printLikes(int postId);
-    bool addComment(int u, int postId, int parentId, const char *text);
-    void showComments(int postId);
+    bool likePost(int u, int authorId, int postNo);
+    bool unlikePost(int u, int authorId, int postNo);
+    void printLikes(int authorId, int postNo);
+    bool addComment(int u, int authorId, int postNo, int parentId, const char *text);
 
-    // 5. Tim kiem & goi y
+    // 5. Ban chung & goi y
     void mutualFriends(int a, int b);
-    int bfs(int s, int t, bool showPath);
+    int bfs(int s, int t);
     void suggestFriends(int u);
 
     // 6. Tin nhan & thong bao
     Conv *findConv(int a, int b, bool create);
     bool sendMessage(int from, int to, const char *text);
-    void showHistory(int a, int b);
+    void showAllConversations(int id);
     void showRecent(int a, int b, int n);
     void showNotifications(int id);
 }SocialNetwork;
@@ -716,19 +626,17 @@ typedef struct SocialNetwork{
 void SocialNetwork::init(){
     ht.init();
     avl.init();
-    userTrie.init(false);
-    tagTrie.init(true);
     friendSet.init();
-    followSet.init();
     for(int i = 0; i < MAXU; i++){
         friends[i].init();
-        following[i].init();
         posts[i].init();
         notifs[i].init();
+        postCounter[i] = 0;
         gUsers[i] = NULL;
     }
     convHead = NULL;
-    userCount = postCounter = commentCounter = timer = 0;
+    userCount = 0;
+    savedCount = 0;
 }
 
 bool SocialNetwork::valid(int id){
@@ -755,7 +663,6 @@ int SocialNetwork::registerUser(const char *username, const char *password, cons
     gUsers[u->id] = u;
     ht.insert(u);
     avl.add(u);
-    userTrie.insert(u->username);
     return u->id;
 }
 
@@ -767,13 +674,26 @@ int SocialNetwork::login(const char *username, const char *password){
     return u->id;
 }
 
+// Luu tai khoan vua dang nhap len dau danh sach (khong trung lap)
+void SocialNetwork::saveAccount(int id){
+    int pos = -1;
+    for(int i = 0; i < savedCount; i++){
+        if(saved[i] == id) pos = i;
+    }
+    if(pos == -1){
+        if(savedCount < MAXSAVED) savedCount++;
+        pos = savedCount - 1;
+    }
+    for(int i = pos; i > 0; i--) saved[i] = saved[i - 1];
+    saved[0] = id;
+}
+
 void SocialNetwork::printProfile(User *u){
     cout<<"  +----------------------------------------------------"<<endl;
     cout<<"  |  @"<<u->username<<"   (ID "<<u->id<<")"<<endl;
     cout<<"  |  Ho ten    : "<<u->fullname<<endl;
     cout<<"  |  Gioi thieu: "<<u->bio<<endl;
-    cout<<"  |  Ban be: "<<friends[u->id].size<<"    Dang theo doi: "<<following[u->id].size
-        <<"    Bai viet: "<<posts[u->id].size<<endl;
+    cout<<"  |  Ban be: "<<friends[u->id].size<<"    Bai viet: "<<posts[u->id].size<<endl;
     cout<<"  +----------------------------------------------------"<<endl;
 }
 
@@ -781,19 +701,49 @@ void SocialNetwork::searchUser(const char *username){
     char uname[30];
     toLowerStr(username, uname, 30);
     User *u = ht.find(uname);
-    if(u != NULL){
-        printProfile(u);
-    }
-    else{
-        cout<<"Khong tim thay. Co the ban muon tim:"<<endl;
-        userTrie.autocomplete(uname);
+    if(u != NULL) printProfile(u);
+    else cout<<"  Khong tim thay nguoi dung '"<<uname<<"'"<<endl;
+}
+
+// Cay AVL khong co phep xoa, nen khi doi username ta dung lai cay tu dau
+void SocialNetwork::rebuildAVL(){
+    avl.reset();
+    for(int i = 1; i <= userCount; i++){
+        if(gUsers[i] != NULL) avl.add(gUsers[i]);
     }
 }
 
-bool SocialNetwork::updateProfile(int id, const char *fullname, const char *bio){
-    if(!valid(id)) return false;
-    if(strlen(fullname) > 0) copyStr(gUsers[id]->fullname, fullname, 50);
-    if(strlen(bio) > 0) copyStr(gUsers[id]->bio, bio, 100);
+// Tra ve 0 = thanh cong, 1 = khong hop le, 2 = da co nguoi dung
+int SocialNetwork::changeUsername(int id, const char *newName){
+    char nn[30];
+    toLowerStr(newName, nn, 30);
+    if(strlen(nn) == 0 || strlen(newName) >= 30) return 1;
+    if(strcmp(nn, gUsers[id]->username) == 0) return 0;
+    if(ht.find(nn) != NULL) return 2;
+    ht.remove(gUsers[id]->username);       // xoa khoi bang bam bang ten cu
+    copyStr(gUsers[id]->username, nn, 30);
+    ht.insert(gUsers[id]);                 // them lai bang ten moi
+    rebuildAVL();
+    return 0;
+}
+
+// Tra ve 0 = thanh cong, 1 = sai mat khau cu, 2 = mat khau moi rong
+int SocialNetwork::changePassword(int id, const char *oldPw, const char *newPw){
+    if(strcmp(gUsers[id]->password, oldPw) != 0) return 1;
+    if(strlen(newPw) == 0) return 2;
+    copyStr(gUsers[id]->password, newPw, 30);
+    return 0;
+}
+
+bool SocialNetwork::changeBio(int id, const char *bio){
+    if(strlen(bio) == 0) return false;
+    copyStr(gUsers[id]->bio, bio, 100);
+    return true;
+}
+
+bool SocialNetwork::changeFullname(int id, const char *fullname){
+    if(strlen(fullname) == 0) return false;
+    copyStr(gUsers[id]->fullname, fullname, 50);
     return true;
 }
 
@@ -805,7 +755,7 @@ bool SocialNetwork::addFriend(int a, int b){
     friends[b].addLast(a);
     friendSet.add(a * MAXU + b);
     friendSet.add(b * MAXU + a);
-    char buf[200];
+    char buf[300];
     sprintf(buf, "%s da ket ban voi ban", nameOf(a));
     notify(b, buf);
     return true;
@@ -821,166 +771,104 @@ bool SocialNetwork::unfriend(int a, int b){
     return true;
 }
 
-bool SocialNetwork::follow(int a, int b){
-    if(a == b || !valid(a) || !valid(b)) return false;
-    if(followSet.contains(a * MAXU + b)) return false;
-    following[a].addLast(b);
-    followSet.add(a * MAXU + b);
-    char buf[200];
-    sprintf(buf, "%s da theo doi ban", nameOf(a));
-    notify(b, buf);
-    return true;
-}
-
-bool SocialNetwork::unfollow(int a, int b){
-    if(!valid(a) || !valid(b)) return false;
-    if(!followSet.contains(a * MAXU + b)) return false;
-    following[a].removeValue(b);
-    followSet.remove(a * MAXU + b);
-    return true;
-}
-
 void SocialNetwork::printFriends(int id){
-    cout<<"Danh sach ban be cua "<<nameOf(id)<<" ("<<friends[id].size<<"): ";
+    cout<<"  Ban be cua "<<nameOf(id)<<" ("<<friends[id].size<<"): ";
+    if(friends[id].size == 0) cout<<"(chua co ban be)";
     friends[id].print();
     cout<<endl;
 }
 
-void SocialNetwork::printFollowing(int id){
-    cout<<nameOf(id)<<" dang theo doi ("<<following[id].size<<"): ";
-    following[id].print();
-    cout<<endl;
-}
-
-// ---------- 3. BAI VIET & NEWSFEED ----------
+// ---------- 3. BAI VIET (danh so rieng cho tung tai khoan) ----------
 int SocialNetwork::createPost(int author, const char *content){
     if(!valid(author) || strlen(content) == 0) return 0;
     Post *p = new Post();
-    p->id = ++postCounter;
+    p->id = ++postCounter[author];         // #1, #2, ... cua rieng tac gia
     p->authorId = author;
     copyStr(p->content, content, 200);
-    p->time = ++timer;
+    p->commentCount = 0;
     p->likes.init();
-    p->comments = new Comment();         // nut goc gia, id = 0
+    p->comments = new Comment();           // nut goc gia, id = 0
     p->comments->id = 0;
     p->prev = p->next = NULL;
-    posts[author].addFirst(p);           // bai moi nhat o dau danh sach
-
-    // tach hashtag dua vao Trie
-    for(int i = 0; p->content[i] != '\0'; i++){
-        if(p->content[i] == '#'){
-            char tag[32];
-            int k = 0, j = i + 1;
-            while(p->content[j] != '\0' && (isalnum((unsigned char)p->content[j]) || p->content[j] == '_') && k < 30){
-                tag[k++] = p->content[j];
-                j++;
-            }
-            tag[k] = '\0';
-            if(k > 0) tagTrie.insert(tag);
-            i = j - 1;
-        }
-    }
+    posts[author].addFirst(p);             // bai moi nhat o dau danh sach
     return p->id;
 }
 
-bool SocialNetwork::deletePost(int author, int postId){
+bool SocialNetwork::deletePost(int author, int postNo){
     if(!valid(author)) return false;
-    return posts[author].removeById(postId);
+    return posts[author].removeById(postNo);
 }
 
-Post *SocialNetwork::findPost(int postId){
-    for(int u = 1; u <= userCount; u++){
-        Post *p = posts[u].findById(postId);
-        if(p != NULL) return p;
-    }
-    return NULL;
+Post *SocialNetwork::findPost(int authorId, int postNo){
+    if(!valid(authorId)) return NULL;
+    return posts[authorId].findById(postNo);
 }
 
-void SocialNetwork::printPost(Post *p){
-    cout<<"  +-- Bai #"<<p->id<<"  |  "<<nameOf(p->authorId)<<"  |  luc "<<p->time<<endl;
+void SocialNetwork::printPost(Post *p, int viewer){
+    cout<<"  +-- Bai #"<<p->id<<"  |  "<<nameOf(p->authorId)<<endl;
     cout<<"  |   "<<p->content<<endl;
-    cout<<"  |   Like: "<<p->likes.size<<"    Binh luan: "<<countComments(p->comments->child)<<endl;
+    cout<<"  |   Like: "<<p->likes.size<<"    Binh luan: "<<countComments(p->comments->child);
+    if(viewer != 0 && p->likes.contains(viewer)) cout<<"    [BAN DA LIKE]";
+    cout<<endl;
     cout<<"  +----------------------------------------------------"<<endl;
 }
 
-void SocialNetwork::printUserPosts(int id){
-    cout<<"Bai viet cua "<<nameOf(id)<<" (moi nhat truoc):"<<endl;
+// Bai viet kem toan bo cay binh luan
+void SocialNetwork::printPostFull(Post *p, int viewer){
+    printPost(p, viewer);
+    if(p->comments->child == NULL) cout<<"  (chua co binh luan)"<<endl;
+    else printComments(p->comments->child, 1);
+}
+
+void SocialNetwork::printUserPosts(int id, int viewer){
+    cout<<"  Bai viet cua "<<nameOf(id)<<" ("<<posts[id].size<<" bai, moi nhat truoc):"<<endl<<endl;
     if(posts[id].size == 0) cout<<"  (chua co bai viet)"<<endl;
     for(Post *p = posts[id].head; p != NULL; p = p->next){
-        printPost(p);
-    }
-}
-
-void SocialNetwork::pushPosts(MaxHeap &h, int uid){
-    for(Post *p = posts[uid].head; p != NULL; p = p->next){
-        h.push(p);
-    }
-}
-
-void SocialNetwork::newsfeed(int id, int k){
-    bool seen[MAXU];
-    for(int i = 0; i < MAXU; i++) seen[i] = false;
-    MaxHeap h;
-    h.init();
-    seen[id] = true;
-    pushPosts(h, id);
-    for(Node *p = friends[id].head; p != NULL; p = p->next){
-        if(!seen[p->data]){
-            seen[p->data] = true;
-            pushPosts(h, p->data);
-        }
-    }
-    for(Node *p = following[id].head; p != NULL; p = p->next){
-        if(!seen[p->data]){
-            seen[p->data] = true;
-            pushPosts(h, p->data);
-        }
-    }
-    cout<<"  Newsfeed cua "<<nameOf(id)<<" (bai moi nhat o tren):"<<endl<<endl;
-    if(h.isempty()) cout<<"  (chua co bai viet nao)"<<endl;
-    for(int i = 0; i < k && !h.isempty(); i++){
-        printPost(h.pop());
+        printPostFull(p, viewer);
+        cout<<endl;
     }
 }
 
 // ---------- 4. TUONG TAC ----------
-bool SocialNetwork::likePost(int u, int postId){
-    Post *p = findPost(postId);
+bool SocialNetwork::likePost(int u, int authorId, int postNo){
+    Post *p = findPost(authorId, postNo);
     if(p == NULL || !valid(u)) return false;
     if(p->likes.contains(u)) return false;
     p->likes.addLast(u);
     if(p->authorId != u){
-        char buf[200];
-        sprintf(buf, "%s da thich bai viet #%d cua ban", nameOf(u), postId);
+        char buf[300];
+        sprintf(buf, "%s da thich bai viet #%d cua ban: \"%.60s\"", nameOf(u), postNo, p->content);
         notify(p->authorId, buf);
     }
     return true;
 }
 
-bool SocialNetwork::unlikePost(int u, int postId){
-    Post *p = findPost(postId);
+bool SocialNetwork::unlikePost(int u, int authorId, int postNo){
+    Post *p = findPost(authorId, postNo);
     if(p == NULL) return false;
     return p->likes.removeValue(u);
 }
 
-void SocialNetwork::printLikes(int postId){
-    Post *p = findPost(postId);
+void SocialNetwork::printLikes(int authorId, int postNo){
+    Post *p = findPost(authorId, postNo);
     if(p == NULL){
-        cout<<"Khong tim thay bai viet"<<endl;
+        cout<<"  Khong tim thay bai viet"<<endl;
         return;
     }
-    cout<<"Bai #"<<postId<<" co "<<p->likes.size<<" like: ";
+    printPost(p);
+    cout<<"  Nhung nguoi da like ("<<p->likes.size<<"): ";
+    if(p->likes.size == 0) cout<<"(chua co ai)";
     p->likes.print();
     cout<<endl;
 }
 
-bool SocialNetwork::addComment(int u, int postId, int parentId, const char *text){
-    Post *p = findPost(postId);
+bool SocialNetwork::addComment(int u, int authorId, int postNo, int parentId, const char *text){
+    Post *p = findPost(authorId, postNo);
     if(p == NULL || !valid(u) || strlen(text) == 0) return false;
     Comment *parent = (parentId == 0) ? p->comments : findComment(p->comments, parentId);
     if(parent == NULL) return false;
     Comment *c = new Comment();
-    c->id = ++commentCounter;
+    c->id = ++p->commentCount;             // binh luan danh so rieng trong tung bai
     c->authorId = u;
     copyStr(c->content, text, 150);
     c->child = c->sibling = NULL;
@@ -991,31 +879,22 @@ bool SocialNetwork::addComment(int u, int postId, int parentId, const char *text
         t->sibling = c;
     }
     if(p->authorId != u){
-        char buf[200];
-        sprintf(buf, "%s da binh luan bai viet #%d cua ban", nameOf(u), postId);
+        char buf[300];
+        sprintf(buf, "%s da binh luan bai viet #%d (\"%.40s\") cua ban: \"%.100s\"",
+                nameOf(u), postNo, p->content, c->content);
         notify(p->authorId, buf);
     }
     return true;
 }
 
-void SocialNetwork::showComments(int postId){
-    Post *p = findPost(postId);
-    if(p == NULL){
-        cout<<"Khong tim thay bai viet"<<endl;
-        return;
-    }
-    printPost(p);
-    if(p->comments->child == NULL) cout<<"  (chua co binh luan)"<<endl;
-    printComments(p->comments->child, 1);
-}
-
-// ---------- 5. TIM KIEM & GOI Y ----------
+// ---------- 5. BAN CHUNG & GOI Y ----------
 void SocialNetwork::mutualFriends(int a, int b){
     int count = 0;
-    cout<<"Ban chung cua "<<nameOf(a)<<" va "<<nameOf(b)<<": ";
+    cout<<"  Ban chung cua "<<nameOf(a)<<" va "<<nameOf(b)<<": ";
     for(Node *p = friends[a].head; p != NULL; p = p->next){
         if(friendSet.contains(p->data * MAXU + b)){
-            cout<<nameOf(p->data)<<" ";
+            if(count > 0) cout<<", ";
+            cout<<nameOf(p->data);
             count++;
         }
     }
@@ -1023,14 +902,12 @@ void SocialNetwork::mutualFriends(int a, int b){
     cout<<endl;
 }
 
-// BFS tren do thi ban be: khoang cach ket noi ngan nhat
-int SocialNetwork::bfs(int s, int t, bool showPath){
+// BFS: khoang cach ket noi ngan nhat giua s va t (-1 neu khong co duong)
+// (Chuc nang van con trong code, chi bo phan hien thi tren menu)
+int SocialNetwork::bfs(int s, int t){
     if(!valid(s) || !valid(t)) return -1;
-    int dist[MAXU], par[MAXU];
-    for(int i = 0; i < MAXU; i++){
-        dist[i] = -1;
-        par[i] = -1;
-    }
+    int dist[MAXU];
+    for(int i = 0; i < MAXU; i++) dist[i] = -1;
     IntQueue q;
     q.init();
     dist[s] = 0;
@@ -1042,20 +919,9 @@ int SocialNetwork::bfs(int s, int t, bool showPath){
             int v = p->data;
             if(dist[v] == -1){
                 dist[v] = dist[u] + 1;
-                par[v] = u;
                 q.push(v);
             }
         }
-    }
-    if(dist[t] != -1 && showPath){
-        int path[MAXU], len = 0;
-        for(int x = t; x != -1; x = par[x]) path[len++] = x;
-        cout<<"Duong ket noi: ";
-        for(int i = len - 1; i >= 0; i--){
-            cout<<nameOf(path[i]);
-            if(i > 0) cout<<" -> ";
-        }
-        cout<<endl;
     }
     return dist[t];
 }
@@ -1069,7 +935,7 @@ void SocialNetwork::suggestFriends(int u){
             if(x != u && !friendSet.contains(u * MAXU + x)) score[x]++;
         }
     }
-    cout<<"Goi y ket ban cho "<<nameOf(u)<<":"<<endl;
+    cout<<"  Goi y ket ban cho "<<nameOf(u)<<":"<<endl;
     int shown = 0;
     for(int r = 0; r < 5; r++){
         int best = -1;
@@ -1077,11 +943,11 @@ void SocialNetwork::suggestFriends(int u){
             if(score[i] > 0 && (best == -1 || score[i] > score[best])) best = i;
         }
         if(best == -1) break;
-        cout<<"  "<<nameOf(best)<<" ("<<score[best]<<" ban chung)"<<endl;
+        cout<<"    "<<nameOf(best)<<" ("<<score[best]<<" ban chung)"<<endl;
         score[best] = 0;
         shown++;
     }
-    if(shown == 0) cout<<"  (chua co goi y)"<<endl;
+    if(shown == 0) cout<<"    (chua co goi y)"<<endl;
 }
 
 // ---------- 6. TIN NHAN & THONG BAO ----------
@@ -1108,51 +974,54 @@ bool SocialNetwork::sendMessage(int from, int to, const char *text){
     Msg *m = new Msg();
     m->from = from;
     copyStr(m->text, text, 200);
-    m->time = ++timer;
     m->next = NULL;
     m->prev = c->tail;
     if(c->tail == NULL) c->head = m;
     else c->tail->next = m;
     c->tail = m;
     c->size++;
-    char buf[200];
+    char buf[300];
     sprintf(buf, "Ban co tin nhan moi tu %s", nameOf(from));
     notify(to, buf);
     return true;
 }
 
-void SocialNetwork::showHistory(int a, int b){
-    Conv *c = findConv(a, b, false);
-    cout<<"  Cuoc tro chuyen "<<nameOf(a)<<" <-> "<<nameOf(b)<<" (cu -> moi):"<<endl;
-    if(c == NULL){
-        cout<<"  (chua co tin nhan)"<<endl;
-        return;
+// Hien tat ca cuoc tro chuyen cua tai khoan nay (khong can nhap username)
+void SocialNetwork::showAllConversations(int id){
+    int count = 0;
+    for(Conv *c = convHead; c != NULL; c = c->next){
+        if(c->a != id && c->b != id) continue;
+        int other = (c->a == id) ? c->b : c->a;
+        cout<<"  +-- Cuoc tro chuyen voi "<<nameOf(other)<<" ("<<c->size<<" tin nhan)"<<endl;
+        for(Msg *m = c->head; m != NULL; m = m->next){
+            cout<<"  |   "<<nameOf(m->from)<<": "<<m->text<<endl;
+        }
+        cout<<"  +----------------------------------------------------"<<endl<<endl;
+        count++;
     }
-    for(Msg *m = c->head; m != NULL; m = m->next){
-        cout<<"  [t="<<m->time<<"] "<<nameOf(m->from)<<": "<<m->text<<endl;
-    }
+    if(count == 0) cout<<"  (ban chua nhan tin voi ai)"<<endl;
 }
 
 void SocialNetwork::showRecent(int a, int b, int n){
     Conv *c = findConv(a, b, false);
-    cout<<endl<<"  "<<n<<" tin nhan gan nhat (cuon nguoc tu cuoi):"<<endl;
+    cout<<endl<<"  "<<n<<" tin nhan gan nhat (cuon nguoc tu cuoi):"<<endl<<endl;
     if(c == NULL){
         cout<<"  (chua co tin nhan)"<<endl;
         return;
     }
     int i = 0;
     for(Msg *m = c->tail; m != NULL && i < n; m = m->prev, i++){
-        cout<<"  [t="<<m->time<<"] "<<nameOf(m->from)<<": "<<m->text<<endl;
+        cout<<"  "<<nameOf(m->from)<<": "<<m->text<<endl;
     }
 }
 
 void SocialNetwork::showNotifications(int id){
-    cout<<"  Thong bao cua "<<nameOf(id)<<":"<<endl;
+    cout<<"  Thong bao cua "<<nameOf(id)<<":"<<endl<<endl;
     if(notifs[id].isempty()){
         cout<<"  (khong co thong bao moi)"<<endl;
         return;
     }
-    char buf[200];
+    char buf[300];
     while(notifs[id].dequeue(buf)){
         cout<<"  * "<<buf<<endl;
     }
@@ -1234,46 +1103,35 @@ void printMenu(const char *who, int unread){
     border('-');
     rowText("[2] MOI QUAN HE");
     rowTwo("  7  Ket ban", "8  Huy ket ban");
-    rowTwo("  9  Theo doi", "10 Bo theo doi");
-    rowTwo("  11 Xem ban be", "12 Xem dang theo doi");
+    rowTwo("  9  Xem ban be", "");
     border('-');
-    rowText("[3] BAI VIET");
-    rowTwo("  13 Dang bai", "14 Xoa bai");
-    rowTwo("  15 Bai viet cua toi", "16 Newsfeed");
+    rowText("[3] BAI VIET & TUONG TAC");
+    rowTwo("  10 Dang bai", "11 Xoa bai");
+    rowTwo("  12 Xem bai & tuong tac", "13 Xem danh sach like");
     border('-');
-    rowText("[4] TUONG TAC");
-    rowTwo("  17 Like", "18 Unlike");
-    rowTwo("  19 Binh luan", "20 Xem binh luan");
-    rowTwo("  21 Xem danh sach like", "");
+    rowText("[4] BAN CHUNG & GOI Y");
+    rowTwo("  14 Ban chung", "15 Goi y ket ban");
     border('-');
-    rowText("[5] TIM KIEM & GOI Y");
-    rowTwo("  22 Goi y username", "23 Goi y hashtag");
-    rowTwo("  24 Ban chung", "25 Khoang cach (BFS)");
-    rowTwo("  26 Goi y ket ban", "");
-    border('-');
-    rowText("[6] TIN NHAN & THONG BAO");
-    rowTwo("  27 Gui tin nhan", "28 Lich su chat");
-    rowTwo("  29 Xem thong bao", "");
+    rowText("[5] TIN NHAN & THONG BAO");
+    rowTwo("  16 Gui tin nhan", "17 Lich su chat");
+    rowTwo("  18 Xem thong bao", "");
     border('-');
     rowText("  0  Thoat chuong trinh");
     border('=');
 }
 
 void printTitle(int ch){
-    const char *titles[30] = {
+    const char *titles[19] = {
         "", "DANG KY NGUOI DUNG", "DANG NHAP", "TIM NGUOI DUNG", "CAP NHAT HO SO",
         "DANH SACH NGUOI DUNG (CAY AVL)", "HO SO CUA TOI", "KET BAN", "HUY KET BAN",
-        "THEO DOI", "BO THEO DOI", "DANH SACH BAN BE", "DANH SACH DANG THEO DOI",
-        "DANG BAI MOI", "XOA BAI VIET", "BAI VIET CUA TOI", "NEWSFEED (MAX-HEAP)",
-        "LIKE BAI VIET", "UNLIKE BAI VIET", "BINH LUAN", "XEM BINH LUAN (CAY N PHAN)",
-        "DANH SACH LIKE", "GOI Y USERNAME (TRIE)", "GOI Y HASHTAG (TRIE)", "BAN CHUNG",
-        "KHOANG CACH KET NOI (BFS)", "GOI Y KET BAN", "GUI TIN NHAN", "LICH SU CHAT",
+        "DANH SACH BAN BE", "DANG BAI MOI", "XOA BAI VIET", "XEM BAI VIET (LIKE & BINH LUAN)",
+        "DANH SACH LIKE", "BAN CHUNG", "GOI Y KET BAN", "GUI TIN NHAN", "LICH SU CHAT",
         "THONG BAO (HANG DOI)"
     };
     char buf[100];
     cout<<endl;
     border('=');
-    if(ch >= 1 && ch <= 29) sprintf(buf, "  >> %s", titles[ch]);
+    if(ch >= 1 && ch <= 18) sprintf(buf, "  >> %s", titles[ch]);
     else sprintf(buf, "  >> KHONG HOP LE");
     rowText(buf);
     border('=');
@@ -1290,24 +1148,127 @@ void seed(SocialNetwork &sn){
 
     sn.addFriend(1, 2); sn.addFriend(2, 3); sn.addFriend(3, 4);
     sn.addFriend(1, 3); sn.addFriend(4, 5);
-    sn.follow(1, 4); sn.follow(5, 1);
 
-    sn.createPost(1, "Hom nay hoc #cautrucdulieu that vui");
-    sn.createPost(2, "Cuoi tuan di choi #dulich #daklak");
-    sn.createPost(3, "On thi #cautrucdulieu va #giaithuat");
-    sn.createPost(4, "Bat dau hoc #cpp");
-    sn.createPost(3, "Da hoan thanh bai tap lon #cpp");
+    sn.createPost(1, "Hom nay hoc cau truc du lieu that vui");   // dat #1
+    sn.createPost(2, "Cuoi tuan di choi Da Lat");                 // giang #1
+    sn.createPost(3, "On thi cau truc du lieu va giai thuat");    // duy #1
+    sn.createPost(4, "Bat dau hoc C++");                          // long #1
+    sn.createPost(3, "Da hoan thanh bai tap lon");                // duy #2
 
-    sn.likePost(2, 1); sn.likePost(3, 1); sn.likePost(1, 3);
-    sn.addComment(2, 1, 0, "Chuc mung ban!");
-    sn.addComment(1, 1, 1, "Cam on Giang nhe");
-    sn.addComment(3, 1, 0, "Hoc cung nhau nhe");
+    sn.likePost(2, 1, 1);       // giang like bai dat #1
+    sn.likePost(3, 1, 1);       // duy like bai dat #1
+    sn.likePost(1, 3, 1);       // dat like bai duy #1
+    sn.addComment(2, 1, 1, 0, "Chuc mung ban!");
+    sn.addComment(1, 1, 1, 1, "Cam on Giang nhe");
+    sn.addComment(3, 1, 1, 0, "Hoc cung nhau nhe");
     sn.sendMessage(1, 2, "Chao Giang, cuoi tuan di cafe khong?");
     sn.sendMessage(2, 1, "Duoc, 9h nhe!");
     sn.sendMessage(1, 2, "Ok hen gap");
 }
 
 // ====================== XU LY TUNG CHUC NANG ======================
+bool gSkipPause = false;   // true = chuc nang tu quan ly man hinh, khong can "Nhan Enter"
+
+// Hien thi danh sach nguoi dung de CHON BANG SO (khong can go username)
+// mode 0: danh sach tron | mode 1: kem trang thai ban be | mode 2: kem so bai viet
+// Tra ve id nguoi duoc chon, hoac 0 neu huy / chon sai
+int pickUser(SocialNetwork &sn, int cur, bool withSelf, int mode, const char *header){
+    cout<<"  "<<header<<endl<<endl;
+    int shown = 0;
+    for(int id = 1; id <= sn.userCount; id++){
+        if(!sn.valid(id)) continue;
+        if(id == cur && !withSelf) continue;
+        char status[60];
+        status[0] = '\0';
+        if(mode == 1){
+            if(id == cur) copyStr(status, "[CHINH BAN]", 60);
+            else if(sn.friendSet.contains(cur * MAXU + id)) copyStr(status, "[DA LA BAN]", 60);
+            else copyStr(status, "[CHUA LA BAN]", 60);
+        }
+        else if(mode == 2){
+            sprintf(status, "(%d bai viet)%s", sn.posts[id].size, id == cur ? "  <- ban" : "");
+        }
+        printf("   [%2d] %-10s %-20s %s\n", id, gUsers[id]->username, gUsers[id]->fullname, status);
+        shown++;
+    }
+    if(shown == 0){
+        err("Chua co nguoi dung nao de chon");
+        return 0;
+    }
+    cout<<endl;
+    int pick = readInt("Chon so (0 = huy): ");
+    if(pick == 0) return 0;
+    if(!sn.valid(pick) || (pick == cur && !withSelf)){
+        err("Lua chon khong hop le");
+        return 0;
+    }
+    return pick;
+}
+
+// Xem bai viet cua 1 nguoi: hien tung bai (kem like, binh luan), chon bai de Like / Binh luan
+void viewPostsFlow(SocialNetwork &sn, int cur, int author){
+    char listMsg[120];
+    char c[200];
+    listMsg[0] = '\0';
+    while(true){
+        clearScreen();
+        printTitle(12);
+        sn.printUserPosts(author, cur);
+        if(listMsg[0] != '\0'){
+            cout<<endl<<"  "<<listMsg<<endl;
+            listMsg[0] = '\0';
+        }
+        cout<<endl<<"  Nhap so bai viet (#) de Like / Binh luan  (0 = quay lai menu)"<<endl;
+        int no = readInt("Chon bai viet: ");
+        if(no == 0) break;
+        Post *p = sn.findPost(author, no);
+        if(p == NULL){
+            copyStr(listMsg, "[!]  Khong co bai viet nay, hay chon lai", 120);
+            continue;
+        }
+        char msg[200];
+        msg[0] = '\0';
+        while(true){
+            clearScreen();
+            printTitle(12);
+            sn.printPostFull(p, cur);
+            if(msg[0] != '\0'){
+                cout<<endl<<"  "<<msg<<endl;
+                msg[0] = '\0';
+            }
+            bool liked = (cur != 0 && p->likes.contains(cur));
+            cout<<endl<<"  --- Thao tac voi bai #"<<p->id<<" cua "<<nameOf(author)<<" ---"<<endl;
+            cout<<"  1. "<<(liked ? "Bo like (ban da like bai nay)" : "Like bai viet nay")<<endl;
+            cout<<"  2. Binh luan / tra loi binh luan"<<endl;
+            cout<<"  0. Quay lai danh sach bai viet"<<endl<<endl;
+            int act = readInt("Chon: ");
+            if(act == 0) break;
+            if(act == 1){
+                if(cur == 0) copyStr(msg, "[!]  Ban can dang nhap de like", 200);
+                else if(liked){
+                    sn.unlikePost(cur, author, no);
+                    copyStr(msg, "[OK] Da bo like bai viet", 200);
+                }
+                else{
+                    sn.likePost(cur, author, no);
+                    copyStr(msg, "[OK] Da like bai viet", 200);
+                }
+            }
+            else if(act == 2){
+                if(cur == 0) copyStr(msg, "[!]  Ban can dang nhap de binh luan", 200);
+                else{
+                    int pid = readInt("Tra loi binh luan so (0 = binh luan goc): ");
+                    readStr("Noi dung binh luan: ", c, 200);
+                    if(sn.addComment(cur, author, no, pid, c)) copyStr(msg, "[OK] Da binh luan", 200);
+                    else copyStr(msg, "[!]  That bai (sai so binh luan hoac noi dung rong)", 200);
+                }
+            }
+            else copyStr(msg, "[!]  Lua chon khong hop le", 200);
+        }
+    }
+    gSkipPause = true;
+}
+
 void handle(SocialNetwork &sn, int &cur, int ch){
     char a[100], b[100], c[200], d[200];
 
@@ -1324,11 +1285,36 @@ void handle(SocialNetwork &sn, int &cur, int ch){
         else err("Dang ky that bai (username rong / qua dai / da ton tai)");
     }
     else if(ch == 2){
+        // Co tai khoan da luu -> cho chon luon, khong can nhap lai
+        if(sn.savedCount > 0){
+            cout<<"  Tai khoan da luu tren may nay:"<<endl<<endl;
+            for(int i = 0; i < sn.savedCount; i++){
+                User *u = gUsers[sn.saved[i]];
+                cout<<"    ["<<i + 1<<"] @"<<u->username<<"  ("<<u->fullname<<")";
+                if(sn.saved[i] == cur) cout<<"  <- dang dung";
+                cout<<endl;
+            }
+            cout<<"    [0] Dang nhap bang tai khoan khac"<<endl<<endl;
+            int pick = readInt("Chon: ");
+            if(pick >= 1 && pick <= sn.savedCount){
+                cur = sn.saved[pick - 1];
+                sn.saveAccount(cur);
+                sprintf(d, "Da vao tai khoan %s (%d thong bao chua doc)", nameOf(cur), sn.notifs[cur].size);
+                ok(d);
+                return;
+            }
+            if(pick != 0){
+                err("Lua chon khong hop le");
+                return;
+            }
+            cout<<endl;
+        }
         readStr("Username: ", a, 100);
         readStr("Mat khau: ", b, 100);
         int id = sn.login(a, b);
         if(id > 0){
             cur = id;
+            sn.saveAccount(cur);
             sprintf(d, "Dang nhap thanh cong! Xin chao %s (%d thong bao chua doc)", nameOf(cur), sn.notifs[cur].size);
             ok(d);
         }
@@ -1341,12 +1327,45 @@ void handle(SocialNetwork &sn, int &cur, int ch){
     }
     else if(ch == 4){
         if(needLogin(cur)) return;
-        readStr("Ho ten moi (bo trong = giu nguyen): ", c, 200);
-        readStr("Gioi thieu moi (bo trong = giu nguyen): ", d, 200);
-        sn.updateProfile(cur, c, d);
-        ok("Da cap nhat ho so");
-        cout<<endl;
-        sn.printProfile(gUsers[cur]);
+        cout<<"  1. Doi ten tai khoan (username)"<<endl;
+        cout<<"  2. Doi mat khau"<<endl;
+        cout<<"  3. Cap nhat gioi thieu"<<endl;
+        cout<<"  4. Cap nhat ho ten"<<endl;
+        cout<<"  0. Quay lai"<<endl<<endl;
+        int sel = readInt("Chon: ");
+        if(sel == 1){
+            readStr("Ten tai khoan moi: ", a, 100);
+            int r = sn.changeUsername(cur, a);
+            if(r == 0){
+                sprintf(d, "Ten tai khoan hien tai: @%s", nameOf(cur));
+                ok(d);
+            }
+            else if(r == 1) err("Ten tai khoan khong hop le (rong hoac qua dai)");
+            else err("Ten tai khoan da co nguoi su dung");
+        }
+        else if(sel == 2){
+            readStr("Mat khau cu: ", a, 100);
+            readStr("Mat khau moi: ", b, 100);
+            int r = sn.changePassword(cur, a, b);
+            if(r == 0) ok("Da doi mat khau");
+            else if(r == 1) err("Mat khau cu khong dung");
+            else err("Mat khau moi khong duoc de trong");
+        }
+        else if(sel == 3){
+            readStr("Gioi thieu moi: ", c, 200);
+            if(sn.changeBio(cur, c)) ok("Da cap nhat gioi thieu");
+            else err("Gioi thieu khong duoc de trong");
+        }
+        else if(sel == 4){
+            readStr("Ho ten moi: ", c, 200);
+            if(sn.changeFullname(cur, c)) ok("Da cap nhat ho ten");
+            else err("Ho ten khong duoc de trong");
+        }
+        else if(sel != 0) err("Lua chon khong hop le");
+        if(sel >= 1 && sel <= 4){
+            cout<<endl;
+            sn.printProfile(gUsers[cur]);
+        }
     }
     else if(ch == 5){
         sn.avl.print();
@@ -1355,141 +1374,126 @@ void handle(SocialNetwork &sn, int &cur, int ch){
         if(needLogin(cur)) return;
         sn.printProfile(gUsers[cur]);
     }
-    else if(ch >= 7 && ch <= 10){
+    else if(ch == 7 || ch == 8){
         if(needLogin(cur)) return;
-        readStr("Username nguoi kia: ", a, 100);
-        toLowerStr(a, b, 100);
-        User *t = sn.ht.find(b);
-        if(t == NULL){
-            err("Khong tim thay nguoi dung");
-            return;
+        int t = pickUser(sn, cur, true, 1, ch == 7 ? "Chon nguoi ban muon KET BAN:" : "Chon nguoi ban muon HUY KET BAN:");
+        if(t == 0) return;
+        bool isFriend = sn.friendSet.contains(cur * MAXU + t);
+        // Chi in ra 1 trong 3 trang thai: CHINH BAN / DA LA BAN / CHUA LA BAN
+        if(t == cur){
+            err("CHINH BAN: day la tai khoan cua ban, khong the thuc hien voi chinh minh");
         }
-        bool res = false;
-        const char *msg = "";
-        if(ch == 7){ res = sn.addFriend(cur, t->id); msg = "Da ket ban"; }
-        else if(ch == 8){ res = sn.unfriend(cur, t->id); msg = "Da huy ket ban"; }
-        else if(ch == 9){ res = sn.follow(cur, t->id); msg = "Da theo doi"; }
-        else{ res = sn.unfollow(cur, t->id); msg = "Da bo theo doi"; }
-        if(res) ok(msg);
-        else err("Khong thuc hien duoc (da ton tai / chua co quan he / chinh ban)");
+        else if(ch == 7){
+            if(isFriend){
+                sprintf(d, "DA LA BAN: ban va %s da la ban be roi", nameOf(t));
+                err(d);
+            }
+            else{
+                sn.addFriend(cur, t);
+                sprintf(d, "Da ket ban voi %s (truoc do: CHUA LA BAN)", nameOf(t));
+                ok(d);
+            }
+        }
+        else{
+            if(!isFriend){
+                sprintf(d, "CHUA LA BAN: ban va %s chua la ban be nen khong the huy", nameOf(t));
+                err(d);
+            }
+            else{
+                sn.unfriend(cur, t);
+                sprintf(d, "Da huy ket ban voi %s", nameOf(t));
+                ok(d);
+            }
+        }
     }
-    else if(ch == 11){
+    else if(ch == 9){
         if(needLogin(cur)) return;
         sn.printFriends(cur);
     }
-    else if(ch == 12){
+    else if(ch == 10){
         if(needLogin(cur)) return;
-        sn.printFollowing(cur);
-    }
-    else if(ch == 13){
-        if(needLogin(cur)) return;
-        readStr("Noi dung (dung #hashtag neu muon): ", c, 200);
-        int id = sn.createPost(cur, c);
-        if(id > 0){
-            sprintf(d, "Da dang bai #%d", id);
+        readStr("Noi dung bai viet: ", c, 200);
+        int no = sn.createPost(cur, c);
+        if(no > 0){
+            sprintf(d, "Da dang bai #%d", no);
             ok(d);
         }
         else err("Noi dung rong");
     }
+    else if(ch == 11){
+        if(needLogin(cur)) return;
+        if(sn.posts[cur].size == 0){
+            err("Ban chua co bai viet nao de xoa");
+            return;
+        }
+        sn.printUserPosts(cur, cur);
+        int no = readInt("So bai viet can xoa (#, 0 = huy): ");
+        if(no == 0) return;
+        if(sn.deletePost(cur, no)) ok("Da xoa bai viet");
+        else err("Khong tim thay bai viet cua ban");
+    }
+    else if(ch == 12){
+        int author = pickUser(sn, cur, true, 2, "Xem bai viet cua ai?");
+        if(author == 0) return;
+        if(sn.posts[author].size == 0){
+            err("Nguoi nay chua co bai viet nao");
+            return;
+        }
+        viewPostsFlow(sn, cur, author);
+    }
+    else if(ch == 13){
+        int author = pickUser(sn, cur, true, 2, "Xem danh sach like bai viet cua ai?");
+        if(author == 0) return;
+        if(sn.posts[author].size == 0){
+            err("Nguoi nay chua co bai viet nao");
+            return;
+        }
+        cout<<endl;
+        for(Post *p = sn.posts[author].head; p != NULL; p = p->next){
+            sn.printPost(p, cur);
+        }
+        int no = readInt("Chon bai viet (#) de xem danh sach like (0 = huy): ");
+        if(no == 0) return;
+        Post *p = sn.findPost(author, no);
+        if(p == NULL){
+            err("Khong tim thay bai viet nay");
+            return;
+        }
+        cout<<endl;
+        sn.printLikes(author, no);
+    }
     else if(ch == 14){
         if(needLogin(cur)) return;
-        int id = readInt("ID bai viet can xoa: ");
-        if(sn.deletePost(cur, id)) ok("Da xoa bai viet");
-        else err("Khong tim thay bai viet cua ban");
+        int t = pickUser(sn, cur, false, 0, "Tim ban chung voi ai?");
+        if(t == 0) return;
+        cout<<endl;
+        sn.mutualFriends(cur, t);
     }
     else if(ch == 15){
         if(needLogin(cur)) return;
-        sn.printUserPosts(cur);
+        sn.suggestFriends(cur);
     }
     else if(ch == 16){
         if(needLogin(cur)) return;
-        int k = readInt("Xem toi da bao nhieu bai: ");
-        if(k <= 0) k = 5;
-        cout<<endl;
-        sn.newsfeed(cur, k);
-    }
-    else if(ch == 17 || ch == 18){
-        if(needLogin(cur)) return;
-        int id = readInt("ID bai viet: ");
-        bool res = (ch == 17) ? sn.likePost(cur, id) : sn.unlikePost(cur, id);
-        if(res) ok(ch == 17 ? "Da like" : "Da bo like");
-        else err("Khong thuc hien duoc (sai id / da like / chua like)");
-    }
-    else if(ch == 19){
-        if(needLogin(cur)) return;
-        int id = readInt("ID bai viet: ");
-        int pid = readInt("Tra loi binh luan so (0 = binh luan goc): ");
-        readStr("Noi dung: ", c, 200);
-        if(sn.addComment(cur, id, pid, c)) ok("Da binh luan");
-        else err("That bai (sai id bai viet / binh luan, hoac noi dung rong)");
-    }
-    else if(ch == 20){
-        int id = readInt("ID bai viet: ");
-        cout<<endl;
-        sn.showComments(id);
-    }
-    else if(ch == 21){
-        int id = readInt("ID bai viet: ");
-        cout<<endl;
-        sn.printLikes(id);
-    }
-    else if(ch == 22){
-        readStr("Nhap tien to username: ", a, 100);
-        cout<<endl<<"  Ket qua goi y:"<<endl;
-        sn.userTrie.autocomplete(a);
-    }
-    else if(ch == 23){
-        readStr("Nhap tien to hashtag (khong can dau #): ", a, 100);
-        cout<<endl<<"  Ket qua goi y:"<<endl;
-        sn.tagTrie.autocomplete(a);
-    }
-    else if(ch == 24 || ch == 25){
-        if(needLogin(cur)) return;
-        readStr("Username nguoi kia: ", a, 100);
-        toLowerStr(a, b, 100);
-        User *t = sn.ht.find(b);
-        if(t == NULL){
-            err("Khong tim thay nguoi dung");
-            return;
+        int t = pickUser(sn, cur, false, 0, "Gui tin nhan cho ai?");
+        if(t == 0) return;
+        readStr("Noi dung tin nhan: ", c, 200);
+        if(sn.sendMessage(cur, t, c)){
+            sprintf(d, "Da gui tin nhan cho %s", nameOf(t));
+            ok(d);
         }
-        cout<<endl;
-        if(ch == 24) sn.mutualFriends(cur, t->id);
-        else{
-            int dist = sn.bfs(cur, t->id, true);
-            if(dist < 0) cout<<"  Hai nguoi chua co ket noi nao"<<endl;
-            else cout<<"  Khoang cach ket noi: "<<dist<<" buoc"<<endl;
-        }
+        else err("Gui that bai (noi dung rong)");
     }
-    else if(ch == 26){
+    else if(ch == 17){
         if(needLogin(cur)) return;
-        sn.suggestFriends(cur);
+        sn.showAllConversations(cur);
     }
-    else if(ch == 27 || ch == 28){
-        if(needLogin(cur)) return;
-        readStr("Username nguoi kia: ", a, 100);
-        toLowerStr(a, b, 100);
-        User *t = sn.ht.find(b);
-        if(t == NULL){
-            err("Khong tim thay nguoi dung");
-            return;
-        }
-        if(ch == 27){
-            readStr("Noi dung tin nhan: ", c, 200);
-            if(sn.sendMessage(cur, t->id, c)) ok("Da gui tin nhan");
-            else err("Gui that bai (noi dung rong hoac gui cho chinh minh)");
-        }
-        else{
-            cout<<endl;
-            sn.showHistory(cur, t->id);
-            sn.showRecent(cur, t->id, 2);
-        }
-    }
-    else if(ch == 29){
+    else if(ch == 18){
         if(needLogin(cur)) return;
         sn.showNotifications(cur);
     }
     else{
-        err("Lua chon khong hop le, hay nhap so tu 0 den 29");
+        err("Lua chon khong hop le, hay nhap so tu 0 den 18");
     }
 }
 
@@ -1517,8 +1521,9 @@ int main(){
         if(ch == 0) break;
         clearScreen();
         printTitle(ch);
+        gSkipPause = false;
         handle(sn, cur, ch);
-        pauseScreen();
+        if(!gSkipPause) pauseScreen();
     }
     cout<<endl<<"  Tam biet!"<<endl;
     return 0;
